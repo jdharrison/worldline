@@ -1,0 +1,113 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: "-D warnings"
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Check formatting
+        run: cargo fmt --check
+
+      - name: Clippy (lib)
+        run: cargo clippy -- -D warnings
+
+      - name: Clippy (all features + examples)
+        run: cargo clippy --all-features --examples -- -D warnings
+
+      - name: Check (lib)
+        run: cargo check
+
+      - name: Check (all features + examples)
+        run: cargo check --all-features --examples
+
+      - name: Test (lib + integration + doc)
+        run: cargo test --all-features
+
+      - name: Build docs
+        run: cargo doc --no-deps --all-features
+
+      - name: Package crate
+        run: cargo package --all-features
+
+      - name: Build release (lib + examples)
+        run: cargo build --release --all-features --examples
+
+  artifact:
+    runs-on: ubuntu-latest
+    needs: validate
+    if: always() && needs.validate.result == 'success'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Build release artifacts
+        run: |
+          cargo build --release --all-features --examples
+          cargo package --all-features
+          cargo doc --no-deps --all-features
+          mkdir -p dist
+          cp target/package/*.crate dist/ || true
+          cp -r target/doc dist/doc || true
+          cp target/release/libworldline.rlib dist/ || true
+          cp target/release/examples/spacelab dist/ 2>/dev/null || true
+          cp target/release/examples/server dist/ 2>/dev/null || true
+          ls -lh dist/ || true
+          ls -lh dist/doc/ | head -20 || true
+
+      - name: Upload crate artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: worldline-crate-${{ github.sha }}
+          path: dist/*.crate
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload docs artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: worldline-docs-${{ github.sha }}
+          path: dist/doc
+          retention-days: 30
+
+      - name: Upload release libs & examples
+        uses: actions/upload-artifact@v4
+        with:
+          name: worldline-release-${{ github.sha }}
+          path: |
+            dist/*.rlib
+            dist/spacelab
+            dist/server
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Summary
+        run: |
+          echo "## worldline CI artifacts" >> $GITHUB_STEP_SUMMARY
+          echo "- Crate: $(ls dist/*.crate 2>/dev/null)" >> $GITHUB_STEP_SUMMARY
+          echo "- Docs: $(du -sh dist/doc 2>/dev/null | cut -f1)" >> $GITHUB_STEP_SUMMARY
+          echo "- Lib: $(ls -lh dist/*.rlib 2>/dev/null)" >> $GITHUB_STEP_SUMMARY

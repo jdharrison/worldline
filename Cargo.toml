@@ -1,16 +1,30 @@
 [package]
-name = "simengine"
+name = "worldline"
 version = "0.1.0"
 edition = "2024"
+description = "Time-aware, fidelity-focused relativistic simulation library — SR with GR scaffolding via worldlines and proper time"
+license = "MIT"
+repository = "https://github.com/jdharrison/worldline"
+keywords = ["relativity", "simulation", "worldline", "physics", "proper-time"]
+categories = ["science", "simulation"]
 
 [dependencies]
-tokio = { version = "1", features = ["net", "time", "sync", "rt-multi-thread", "macros"] }
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-instant = "0.1"
-clap = { version = "4", features = ["derive"] }
+# Retained for example/server and async simulation; library core is sync and does not require them
+tokio = { version = "1", features = ["net", "time", "sync", "rt-multi-thread", "macros"], optional = true }
+tracing = { version = "0.1", optional = true }
+tracing-subscriber = { version = "0.3", features = ["env-filter"], optional = true }
+clap = { version = "4", features = ["derive"], optional = true }
+instant = { version = "0.1", optional = true }
 
 [features]
 default = []
+server = ["tokio", "tracing", "tracing-subscriber", "clap", "instant"]
+async = ["tokio"]
+
+[dev-dependencies]
+tokio = { version = "1", features = ["net", "time", "sync", "rt-multi-thread", "macros"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+clap = { version = "4", features = ["derive"] }

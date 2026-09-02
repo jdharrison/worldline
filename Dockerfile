@@ -1,11 +1,17 @@
-FROM rust:1.75-bookworm AS builder
+FROM rust:1.85-bookworm AS builder
 
 WORKDIR /build
 
 COPY Cargo.toml Cargo.lock ./
 COPY src ./src
+COPY examples ./examples
 
-RUN cargo build --release --bin server
+# Library build (verify)
+RUN cargo build --release --lib
+
+# Demo builds (spacelab + server)
+RUN cargo build --release --example spacelab
+RUN cargo build --release --example server --features server
 
 FROM debian:bookworm-slim
 
@@ -15,7 +21,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-COPY --from=builder /build/target/release/server .
+COPY --from=builder /build/target/release/examples/server ./server
 
 EXPOSE 8080/udp
 
